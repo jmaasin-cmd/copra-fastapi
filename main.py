@@ -3,15 +3,20 @@ from pydantic import BaseModel
 import joblib
 import pandas as pd
 
-# Initialize FastAPI app
-app = FastAPI(title="Copra Quality Prediction API")
+app = FastAPI(title="Copra Multi-Model Prediction API")
 
-# Load model and preprocessing objects
-model = joblib.load("copra_model.joblib")
+# Load preprocessing
 scaler = joblib.load("scaler.joblib")
 label_encoder = joblib.load("label_encoder.joblib")
 
-# Request body schema
+# Load models
+models = {
+    "Random Forest": joblib.load("rf_model.joblib"),
+    "SVM": joblib.load("svm_model.joblib"),
+    "KNN": joblib.load("knn_model.joblib"),
+    "Logistic Regression": joblib.load("lr_model.joblib")
+}
+
 class CopraInput(BaseModel):
     moisture: float
     temperature: float
@@ -19,25 +24,25 @@ class CopraInput(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "Copra FastAPI is running successfully"}
+    return {"message": "Copra FastAPI is running"}
 
-@app.post("/predict")
-def predict(input: CopraInput):
-    # Convert input to DataFrame with correct feature names
+@app.post("/predict-all")
+def predict_all(input: CopraInput):
+
     input_df = pd.DataFrame(
         [[input.moisture, input.temperature, input.color]],
         columns=["moisture", "temperature", "color"]
     )
 
-    # Apply same preprocessing
     input_scaled = scaler.transform(input_df)
 
-    # Predict
-    prediction = model.predict(input_scaled)
+    results = {}
 
-    # Convert numeric label back to text
-    quality = label_encoder.inverse_transform(prediction)[0]
+    for name, model in models.items():
+        pred = model.predict(input_scaled)
+        quality = label_encoder.inverse_transform(pred)[0]
+        results[name] = quality
 
     return {
-        "copra_quality": quality
+        "predictions": results
     }
